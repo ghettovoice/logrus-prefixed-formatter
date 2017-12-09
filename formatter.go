@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/ghettovoice/logrus"
 	"github.com/mgutz/ansi"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -166,8 +166,9 @@ func (f *TextFormatter) SetColorScheme(colorScheme *ColorScheme) {
 
 func (f *TextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	var b *bytes.Buffer
-	var keys []string = make([]string, 0, len(entry.Data))
-	for k := range entry.Data {
+	fields := entry.Fields()
+	var keys []string = make([]string, 0, len(fields))
+	for k := range fields {
 		keys = append(keys, k)
 	}
 	lastKeyIdx := len(keys) - 1
@@ -181,7 +182,7 @@ func (f *TextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	prefixFieldClashes(entry.Data)
+	prefixFieldClashes(fields)
 
 	f.Do(func() { f.init(entry) })
 
@@ -203,7 +204,7 @@ func (f *TextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		} else {
 			colorScheme = noColorsColorScheme
 		}
-		f.printColored(b, entry, keys, timestampFormat, colorScheme)
+		f.printColored(b, entry, keys, fields, timestampFormat, colorScheme)
 	} else {
 		if !f.DisableTimestamp {
 			f.appendKeyValue(b, "time", entry.Time.Format(timestampFormat), true)
@@ -213,7 +214,7 @@ func (f *TextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 			f.appendKeyValue(b, "msg", entry.Message, lastKeyIdx >= 0)
 		}
 		for i, key := range keys {
-			f.appendKeyValue(b, key, entry.Data[key], lastKeyIdx != i)
+			f.appendKeyValue(b, key, fields[key], lastKeyIdx != i)
 		}
 	}
 
@@ -221,7 +222,7 @@ func (f *TextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func (f *TextFormatter) printColored(b *bytes.Buffer, entry *logrus.Entry, keys []string, timestampFormat string, colorScheme *compiledColorScheme) {
+func (f *TextFormatter) printColored(b *bytes.Buffer, entry *logrus.Entry, keys []string, fields logrus.Fields, timestampFormat string, colorScheme *compiledColorScheme) {
 	var levelColor func(string) string
 	var levelText string
 	switch entry.Level {
@@ -253,7 +254,7 @@ func (f *TextFormatter) printColored(b *bytes.Buffer, entry *logrus.Entry, keys 
 	prefix := ""
 	message := entry.Message
 
-	if prefixValue, ok := entry.Data["prefix"]; ok {
+	if prefixValue, ok := fields["prefix"]; ok {
 		prefix = colorScheme.PrefixColor(" " + prefixValue.(string) + ":")
 	} else {
 		prefixValue, trimmedMsg := extractPrefix(entry.Message)
@@ -281,7 +282,7 @@ func (f *TextFormatter) printColored(b *bytes.Buffer, entry *logrus.Entry, keys 
 	}
 	for _, k := range keys {
 		if k != "prefix" {
-			v := entry.Data[k]
+			v := fields[k]
 			fmt.Fprintf(b, " %s=%+v", levelColor(k), v)
 		}
 	}
